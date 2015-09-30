@@ -45,7 +45,6 @@ var (
 )
 
 type cachedTag struct {
-	name        string
 	isOmitEmpty bool
 	diveTag     string
 	tags        []*tagVals
@@ -422,12 +421,20 @@ func (v *Validate) tranverseStruct(topStruct reflect.Value, currentStruct reflec
 			}
 		}
 
-		v.traverseField(topStruct, currentStruct, current.Field(i), errPrefix, errs, true, fld.Tag.Get(v.tagName), fld.Name, fld.Tag.Get(v.fieldNameTagName), partial, exclude, includeExclude)
+		fieldName := fld.Name
+		if v.fieldNameTagName != "" {
+			name := strings.Split(fld.Tag.Get(v.fieldNameTagName), ",")[0]
+			if name != "" {
+				fieldName = name
+			}
+		}
+
+		v.traverseField(topStruct, currentStruct, current.Field(i), errPrefix, errs, true, fld.Tag.Get(v.tagName), fld.Name, fieldName, partial, exclude, includeExclude)
 	}
 }
 
 // traverseField validates any field, be it a struct or single field, ensures it's validity and passes it along to be validated via it's tag options
-func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.Value, current reflect.Value, errPrefix string, errs ValidationErrors, isStructField bool, tag, name, fieldNameTag string, partial bool, exclude bool, includeExclude map[string]*struct{}) {
+func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.Value, current reflect.Value, errPrefix string, errs ValidationErrors, isStructField bool, tag, name, fieldName string, partial bool, exclude bool, includeExclude map[string]*struct{}) {
 
 	if tag == skipValidationTag {
 		return
@@ -436,7 +443,7 @@ func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.
 	cTag, isCached := v.tagsCache.Get(tag)
 
 	if !isCached {
-		cTag = v.parseTags(tag, name, fieldNameTag)
+		cTag = v.parseTags(tag, name)
 		v.tagsCache.Set(tag, cTag)
 	}
 
@@ -454,7 +461,7 @@ func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.
 			if kind == reflect.Invalid {
 				errs[errPrefix+name] = &FieldError{
 					Field:     name,
-					FieldName: cTag.name,
+					FieldName: fieldName,
 					Tag:       cTag.tags[0].tag,
 					ActualTag: cTag.tags[0].tagVals[0][0],
 					Param:     cTag.tags[0].tagVals[0][1],
@@ -465,7 +472,7 @@ func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.
 
 			errs[errPrefix+name] = &FieldError{
 				Field:     name,
-				FieldName: cTag.name,
+				FieldName: fieldName,
 				Tag:       cTag.tags[0].tag,
 				ActualTag: cTag.tags[0].tagVals[0][0],
 				Param:     cTag.tags[0].tagVals[0][1],
@@ -527,7 +534,7 @@ func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.
 			continue
 		}
 
-		if v.validateField(topStruct, currentStruct, current, typ, kind, errPrefix, errs, valTag, name, cTag.name) {
+		if v.validateField(topStruct, currentStruct, current, typ, kind, errPrefix, errs, valTag, name, fieldName) {
 			return
 		}
 	}
@@ -537,9 +544,9 @@ func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.
 		// or panic ;)
 		switch kind {
 		case reflect.Slice, reflect.Array:
-			v.traverseSlice(topStruct, currentStruct, current, errPrefix, errs, diveSubTag, name, fieldNameTag, partial, exclude, includeExclude)
+			v.traverseSlice(topStruct, currentStruct, current, errPrefix, errs, diveSubTag, name, fieldName, partial, exclude, includeExclude)
 		case reflect.Map:
-			v.traverseMap(topStruct, currentStruct, current, errPrefix, errs, diveSubTag, name, fieldNameTag, partial, exclude, includeExclude)
+			v.traverseMap(topStruct, currentStruct, current, errPrefix, errs, diveSubTag, name, fieldName, partial, exclude, includeExclude)
 		default:
 			// throw error, if not a slice or map then should not have gotten here
 			// bad dive tag
@@ -549,18 +556,18 @@ func (v *Validate) traverseField(topStruct reflect.Value, currentStruct reflect.
 }
 
 // traverseSlice traverses a Slice or Array's elements and passes them to traverseField for validation
-func (v *Validate) traverseSlice(topStruct reflect.Value, currentStruct reflect.Value, current reflect.Value, errPrefix string, errs ValidationErrors, tag, name, fieldNameTag string, partial bool, exclude bool, includeExclude map[string]*struct{}) {
+func (v *Validate) traverseSlice(topStruct reflect.Value, currentStruct reflect.Value, current reflect.Value, errPrefix string, errs ValidationErrors, tag, name, fieldName string, partial bool, exclude bool, includeExclude map[string]*struct{}) {
 
 	for i := 0; i < current.Len(); i++ {
-		v.traverseField(topStruct, currentStruct, current.Index(i), errPrefix, errs, false, tag, fmt.Sprintf(arrayIndexFieldName, name, i), fieldNameTag, partial, exclude, includeExclude)
+		v.traverseField(topStruct, currentStruct, current.Index(i), errPrefix, errs, false, tag, fmt.Sprintf(arrayIndexFieldName, name, i), fieldName, partial, exclude, includeExclude)
 	}
 }
 
 // traverseMap traverses a map's elements and passes them to traverseField for validation
-func (v *Validate) traverseMap(topStruct reflect.Value, currentStruct reflect.Value, current reflect.Value, errPrefix string, errs ValidationErrors, tag, name, fieldNameTag string, partial bool, exclude bool, includeExclude map[string]*struct{}) {
+func (v *Validate) traverseMap(topStruct reflect.Value, currentStruct reflect.Value, current reflect.Value, errPrefix string, errs ValidationErrors, tag, name, fieldName string, partial bool, exclude bool, includeExclude map[string]*struct{}) {
 
 	for _, key := range current.MapKeys() {
-		v.traverseField(topStruct, currentStruct, current.MapIndex(key), errPrefix, errs, false, tag, fmt.Sprintf(mapIndexFieldName, name, key.Interface()), fieldNameTag, partial, exclude, includeExclude)
+		v.traverseField(topStruct, currentStruct, current.MapIndex(key), errPrefix, errs, false, tag, fmt.Sprintf(mapIndexFieldName, name, key.Interface()), fieldName, partial, exclude, includeExclude)
 	}
 }
 
