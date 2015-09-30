@@ -240,14 +240,9 @@ func panicIf(err error) {
 	}
 }
 
-func (v *Validate) parseTags(tag, name, fieldNameTag string) *cachedTag {
+func (v *Validate) parseTags(tag, name string) *cachedTag {
 
-	fieldName := strings.Split(fieldNameTag, ",")[0]
-	if fieldName == "" {
-		fieldName = name
-	}
-
-	cTag := &cachedTag{name: fieldName}
+	cTag := &cachedTag{}
 
 	v.parseTagsRecursive(cTag, tag, name, blank, false)
 	return cTag

@@ -4933,13 +4933,17 @@ func TestInvalidValidatorFunction(t *testing.T) {
 
 func TestCustomFieldName(t *testing.T) {
 	type A struct {
-		B string `schema:"b" validate:"min=3"`
+		B string `schema:"b" validate:"required"`
+		C string `schema:"c" validate:"required"`
+		D []bool `schema:"d" validate:"required"`
 	}
 
 	a := &A{}
 
 	errs := New(&Config{TagName: "validate", FieldNameTagName: "schema"}).Struct(a).(ValidationErrors)
 	Equal(t, errs["A.B"].FieldName, "b")
+	Equal(t, errs["A.C"].FieldName, "c")
+	Equal(t, errs["A.D"].FieldName, "d")
 
 	errs = New(&Config{TagName: "validate"}).Struct(a).(ValidationErrors)
 	Equal(t, errs["A.B"].FieldName, "B")
